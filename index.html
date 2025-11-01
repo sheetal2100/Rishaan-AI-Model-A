@@ -1,67 +1,101 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>My Teachable Machine Project</title>
+    <title>My Teachable Machine Image Upload Project</title>
+    <style>
+        /* Optional: Basic styling for better layout */
+        #output {
+            display: block;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+        }
+    </style>
 </head>
 <body>
     <h1>My Image Classification Project</h1>
-    <div>Teachable Machine Image Model</div>
-    <button type="button" onclick="init()">Start</button>
-    <div id="webcam-container"></div>
+    <div>Teachable Machine Image Model (Upload)</div>
+
+    <input type="file" id="imageUpload" accept="image/*" onchange="loadFile(event)">
+    
+    <div id="image-container">
+        <img id="output" width="200" height="200" alt="Uploaded Image Preview"/>
+    </div>
+    
     <div id="label-container"></div>
+    
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
 
     <script type="text/javascript">
-         // the link to your model provided by Teachable Machine export panel
-            // const URL = "https://teachablemachine.withgoogle.com/models/fqbFcXGvR/";
-            const URL = "https://teachablemachine.withgoogle.com/models/fqbFcXGvR/";
+        // The link to your model provided by Teachable Machine export panel
+        // const URL = "https://teachablemachine.withgoogle.com/models/fqbFcXGvR/";
+        const MODEL_URL = "https://teachablemachine.withgoogle.com/models/fqbFcXGvR/";
 
-        let model, webcam, labelContainer, maxPredictions;
+        let model, labelContainer, maxPredictions;
+        let imageElement; // Variable to hold the HTML <img> element
 
-        // Load the image model and setup the webcam
+        // 1. Initial function: Loads the model and sets up the page
         async function init() {
-            const modelURL = URL + "model.json";
-            const metadataURL = URL + "metadata.json";
+            //const modelURL = URL + "model.json";
+            //const metadataURL = URL + "metadata.json";
+            const modelURL = MODEL_URL + "model.json";
+            const metadataURL = MODEL_URL + "metadata.json";
 
-            // load the model and metadata
-            // Refer to tmImage.loadFromFiles() in the API to support files from a file picker
-            // or files from your local hard drive
-            // Note: the pose library adds "tmImage" object to your window (window.tmImage)
+            // Load the model and metadata
             model = await tmImage.load(modelURL, metadataURL);
             maxPredictions = model.getTotalClasses();
 
-            // Convenience function to setup a webcam
-            const flip = true; // whether to flip the webcam
-            webcam = new tmImage.Webcam(200, 200, flip); // width, height, flip
-            await webcam.setup(); // request access to the webcam
-            await webcam.play();
-            window.requestAnimationFrame(loop);
-
-            // append elements to the DOM
-            document.getElementById("webcam-container").appendChild(webcam.canvas);
+            // Prepare the label container
             labelContainer = document.getElementById("label-container");
-            for (let i = 0; i < maxPredictions; i++) { // and class labels
+            for (let i = 0; i < maxPredictions; i++) {
                 labelContainer.appendChild(document.createElement("div"));
             }
+            
+            // Get the image element for prediction
+            imageElement = document.getElementById("output");
         }
 
-        async function loop() {
-            webcam.update(); // update the webcam frame
-            await predict();
-            window.requestAnimationFrame(loop);
-        }
+        // 2. Function to load the image file and trigger prediction
+        // This runs when the user selects a file (onchange event)
+        const loadFile = async (event) => {
+            // Check if a file was selected
+            if (event.target.files.length === 0) return;
 
-        // run the webcam image through the image model
+            // Display the selected image by creating a temporary URL
+            imageElement.src = window.URL.createObjectURL(event.target.files[0]);
+            
+            // This event ensures the prediction runs ONLY after the image is fully loaded
+            imageElement.onload = async () => {
+                // Ensure model is loaded (important for the first use)
+                if (!model) {
+                    await init();
+                }
+                // Once loaded, run the prediction
+                await predict();
+            };
+        };
+
+        // 3. Function to run the image through the model
         async function predict() {
-            // predict can take in an image, video or canvas html element
-            const prediction = await model.predict(webcam.canvas);
+            // Clear previous results before running a new prediction
+            for (let i = 0; i < maxPredictions; i++) {
+                labelContainer.childNodes[i].innerHTML = "Classifying...";
+            }
+
+            // predict can take in an image, video, or canvas html element
+            // We pass the <img> element to the model
+            const prediction = await model.predict(imageElement);
+            
+            // Update the results in the label container
             for (let i = 0; i < maxPredictions; i++) {
                 const classPrediction =
-                    prediction[i].className + ": " + prediction[i].probability.toFixed(2);
+                    prediction[i].className + ": " + (prediction[i].probability * 100).toFixed(2) + "%";
                 labelContainer.childNodes[i].innerHTML = classPrediction;
             }
         }
+        
+        // Auto-initialize the model when the page loads
+        init(); 
     </script>
 </body>
 </html>
